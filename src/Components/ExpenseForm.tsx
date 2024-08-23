@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import type { DraftExpense, Value } from "../types";
 import { categories } from "../data/categories";
 import DatePicker from 'react-date-picker';
@@ -8,14 +8,26 @@ import Error from "./Error";
 import { useBudget } from "../hooks/useBudget";
 
 export default function ExpenseForm() {
-const [error,setError]=useState('')
-const {dispatch}=useBudget()
-const [expense,setExpense]=useState<DraftExpense>({
+  const [expense,setExpense]=useState<DraftExpense>({
     amount:0,
     expenseName:'',
     category:'',
     date:new Date(),
 })
+const [error,setError]=useState('')
+const [prevEx,setPrev]=useState(0)
+const {state,dispatch,disponible}=useBudget()
+useEffect(()=>{
+  if(state.editExp){
+    const editingExpense = state.expenses.find(exp => exp.id === state.editExp);
+    if (editingExpense) {
+      setExpense(editingExpense);
+      setPrev(editingExpense.amount)
+    }
+  }
+}, [state.editExp]);
+
+
 const handleChange = (e : React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>)=>{
    
     const {name,value}=e.target//hace un destructuring para sacar name y value de e.target para no usar e.target.name
@@ -32,30 +44,43 @@ const handleChangeDate=(value : Value)=>{
         date: value
     })
 }
-const handleSubmit = (e: React.FormEvent<HTMLFormElement>)=>{
-    e.preventDefault()
-    if(Object.values(expense).includes('')){
-        setError('Todos los campos son requeridos')
-        return
-    }
-    dispatch({type:'add-expense',payload:{expense}})
-    setExpense({
-      amount:0,
-      expenseName:'',
-      category:'',
-      date:new Date(),
-    })
+const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  if (Object.values(expense).includes('')) {
+      setError('Todos los campos son requeridos');
+      return;
+  }
+  if ( (expense.amount - prevEx) > disponible) {
+    setError('Presuspuesto Alcanzado');
+    return;
 }
+  console.log('Submitting expense:', expense);
+  if (state.editExp) {
+      console.log('Updating expense with id:', state.editExp);
+      dispatch({ type: 'update-exp', payload: { expense: { id: state.editExp, ...expense } } });
+  } else {
+      console.log('Adding new expense');
+      dispatch({ type: 'add-expense', payload: { expense } });
+  }
+  setExpense({
+      amount: 0,
+      expenseName: '',
+      category: '',
+      date: new Date(),
+  });
+  setPrev(0)
+};
+
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
-      <legend className="uppercase text-center text-2xl font-black border-b-4 border-blue-500 py-2">Nuevo Gasto</legend>
+      <legend className="uppercase text-center text-2xl font-black border-b-4 border-blue-500 py-2">{state.editExp ? 'Editando Gasto' :'Nuevo Gasto' }</legend>
       {error && <Error >{error}</Error>}
       <div className="flex flex-col gap-2">
         <label htmlFor="expenseName" className="text-xl">Nombre Gasto:</label>
         <input type="text" id="expenseName" placeholder="Ingrese el nombre del gasto" className="bg-slate-100 p-2 " name="expenseName"  onChange={handleChange} value={expense.expenseName}/>
       </div>
       <div className="flex flex-col gap-2">
-        <label htmlFor="amount" className="text-xl">Cantidad Gastada:</label>
+        <label htmlFor="amount" className="text-xl">Cantidad Invertida:</label>
         <input type="number" id="amount" placeholder="Ingrese el monto gastado" className="bg-slate-100 p-2 " name="amount"  onChange={handleChange} value={expense.amount}/>
       </div>
       <div className="flex flex-col gap-2">
